@@ -1,8 +1,9 @@
 package com.example.springsecurityv6.Filter;
 
 
-import com.example.springsecurityv6.Jwt.CustomAuthenticationProvider;
 import com.example.springsecurityv6.Jwt.JwtService;
+import com.example.springsecurityv6.Models.User;
+import com.example.springsecurityv6.Models.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,7 @@ import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,49 +26,51 @@ public class MyCustomFilter extends OncePerRequestFilter {
 
     @Autowired
     private JwtService jwtService;
-    private  AuthenticationManager authenticationManager;
-
-
-
-    public MyCustomFilter() {
-        // Instantiate AuthenticationManager with a list of AuthenticationProviders
-        this.authenticationManager = new ProviderManager(Collections.singletonList(new CustomAuthenticationProvider()));
-    }
+    @Autowired
+    private UserDetailsServiceImpl userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-            String header = request.getHeader("x-profil");
-     /*   if (header !=null && !header.equals("java")) {
-            //System.out.println("you are Not a Java Developer");
-            response.setStatus(HttpStatus.FORBIDDEN.value());
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.getWriter().write("you are Not a Java Developer");
-            return ;
-        }
-        if (header==null){
-            response.setStatus(HttpStatus.FORBIDDEN.value());
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.getWriter().write("you are Not a Java Developer");
-            return;
-        }
-        System.out.println("--welcome----Java Developer");*/
+        String header = request.getHeader("Authorization");
 
-        /*my Custom Authentication*/
 
-        if ("java".equals(header)) {
-            String token = jwtService.generateToken("user1");
-            System.out.println("he Java Developer !!"+token);
-            // Create an Authentication object
-            Authentication auth = new UsernamePasswordAuthenticationToken("user2", "222");
+         if(header ==null || !header.startsWith("Bearer ")){
+             filterChain.doFilter(request,response);
+             return;
+         }
+         String token =header.substring(7);
+         String username = jwtService.extractUsername(token);
+         if(username!=null && SecurityContextHolder.getContext().getAuthentication()==null){
+             User user = (User) userDetailsService.loadUserByUsername(username);
 
-            // Authenticate the user
+             if(jwtService.validateToken(token,user)){
+                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                         user,null,user.getAuthorities()
+                 );
+                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                 SecurityContextHolder.getContext().setAuthentication(auth);
+             }
+         }
 
-            Authentication authenticated = authenticationManager.authenticate(auth);
-
-            // Set the Authentication object in the SecurityContext
-            SecurityContextHolder.getContext().setAuthentication(authenticated);
-        }
 
         filterChain.doFilter(request,response);
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

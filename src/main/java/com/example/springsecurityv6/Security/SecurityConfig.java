@@ -1,12 +1,15 @@
 package com.example.springsecurityv6.Security;
 
 import com.example.springsecurityv6.Filter.MyCustomFilter;
-import com.example.springsecurityv6.Jwt.CustomAuthenticationProvider;
+import com.example.springsecurityv6.Models.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -25,8 +29,11 @@ import static org.springframework.security.config.Customizer.withDefaults;
 public class SecurityConfig  {
 
     private final MyCustomFilter myCustomFilter;
-    private  final CustomAuthenticationProvider customAutheticationProvider;
-    @Bean
+    private final UserDetailsServiceImpl userDetailsService;
+
+
+    //private  final CustomAuthenticationProvider customAutheticationProvider;
+   // @Bean
     public InMemoryUserDetailsManager userDetailsService() {
         UserDetails user1 = User.withUsername("user1")
                 .password(passwordEncoder().encode("111"))
@@ -50,14 +57,20 @@ public class SecurityConfig  {
                 .csrf(s->s.disable())
 
 
-                .formLogin(withDefaults())
                 .authorizeHttpRequests(auth->{
-                    auth.requestMatchers("api/home/welcome").permitAll();
-                    auth.requestMatchers("api/home/products").hasAuthority("USER");
+                    auth.requestMatchers("api/home/welcome").hasAuthority("USER");
+                    auth.requestMatchers("api/home/products").hasRole("ADMIN");
+                    auth.requestMatchers("auth").permitAll();
+                    auth.requestMatchers("register").permitAll();
+
+                    auth.anyRequest().authenticated();
 
                 })
-                .addFilterBefore(myCustomFilter, AuthorizationFilter.class)
-                .authenticationProvider(customAutheticationProvider)
+                .userDetailsService(userDetailsService)
+                .sessionManagement(session->session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(myCustomFilter, UsernamePasswordAuthenticationFilter.class)
+               // .authenticationProvider(customAutheticationProvider)
 
                 .build();
 
@@ -70,6 +83,11 @@ public class SecurityConfig  {
     }
 
 
+    @Bean
+    AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+
+        return config.getAuthenticationManager();
+    }
 
 
 }
